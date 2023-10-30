@@ -46,22 +46,25 @@ def parse_one_case(data_dir,name):
     geometry[np.linalg.norm(out[:,2:4],axis=1)!=0,-1]=1
 
     u_in = name.split('_')[2]
-
-    return geometry, out[:,2:], u_in
+    alpha = name.split('_')[3]
+    return geometry, out[:,2:], u_in, alpha
 
 f = h5py.File(osp.join(data_dir,outfile), 'a')
 lst = os.listdir(data_dir)
+lst = [n for n in lst if osp.isdir(osp.join(data_dir,n))]
 for i,name in enumerate(tqdm(lst)):
 
     if not osp.isdir(osp.join(data_dir,name)): 
         continue
 
-    geometry, sol, u_in = parse_one_case(data_dir,name)
+    geometry, sol, u_in, alpha = parse_one_case(data_dir,name)
 
     grp = f.require_group('case_{}'.format(i))
     grp.create_dataset('geometry', data=geometry, dtype='f')
     grp.create_dataset('sol',data=sol,dtype='f')
     grp.attrs['u_in'] = u_in
+    grp.attrs['alpha'] = alpha
+    grp.attrs['case_name'] = name
     f.flush()
 
 f.attrs['N'] = N

@@ -32,7 +32,8 @@ class H5RansDataset(Dataset):
         geometry = geometry.reshape(geometry.shape[0],self.N,self.N)
         
         u_in = torch.tensor(float(group.attrs['u_in']))
-        return (torch.tensor(geometry),torch.tensor(sol),u_in)
+        alpha = torch.tensor(float(group.attrs['alpha']))
+        return (torch.tensor(geometry),torch.tensor(sol),u_in,alpha)
 
 class RansPatchDataset(Dataset):
 
@@ -50,10 +51,11 @@ class RansPatchDataset(Dataset):
 
     def __getitem__(self,idx):
 
-        geometry, sol, u_in = self.dataset[self.indices[idx]]
+        geometry, sol, u_in, alpha = self.dataset[self.indices[idx]]
         patches_in = to_patches(geometry[-1:],self.P)[0]
         patches_in = torch.cat([
             u_in.reshape(1,1).repeat(patches_in.shape[0],1),
+            alpha.reshape(1,1).repeat(patches_in.shape[0],1),
             patches_in],dim=-1)
         patches_out = to_patches(sol[:2],self.P)[0]
         mask = torch.cat([geometry[-1:] for _ in range(2)],
@@ -83,8 +85,6 @@ def to_img(patches,H,W,P):
             img[...,i*P:(i+1)*P,j*P:(j+1)*P] = \
                 patches[:,i*(W//P) + j].reshape(B,C,P,P)
     return img
-
-
 
 class AirfRANSGPTtrainer(miniGPT.train_utils.DecoderGPTtrainer):
 
