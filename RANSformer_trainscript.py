@@ -14,7 +14,7 @@ dataset = H5RansDataset(osp.join(data_dir,outfile))
 
 
 
-savedir = '/home/tau/emenier/data/AirfRANS/runs/run_4/'
+savedir = '/home/tau/emenier/data/AirfRANS/runs/run_3/'
 
 batch_size = 64 # how many independent sequences will we process in parallel?
 lr = 3e-4
@@ -27,7 +27,7 @@ image_size = dataset.N
 C_out = 2
 n_layers = 12
 n_heads = 8
-dropout = 0.0
+dropout = 0.1
 N = image_size**2//(P**2)
 
 print(f'D : {D:}, n_head : {n_heads:}, n_layer : {n_layers:}')

@@ -15,6 +15,9 @@ class H5RansDataset(Dataset):
         self.data = h5py.File(path, 'r')
         self.N = self.data.attrs['N']
         self.cases = list(self.data.keys())
+        self.case_names = [
+            self.data[c].attrs['case_name'] for c in self.cases
+        ]
         if indices is None:
             self.indices = np.arange(len(self.cases))
         else: self.indices = indices
@@ -42,7 +45,7 @@ class RansPatchDataset(Dataset):
         self.dataset = dataset
         self.indices = indices
         if indices is None:
-            self.indices = np.arange(len(self.cases))
+            self.indices = np.arange(len(self.dataset.cases))
         else: self.indices = indices
         self.P = P
     
@@ -63,6 +66,42 @@ class RansPatchDataset(Dataset):
         mask = to_patches(mask,self.P)[0]
         mask = mask < 0.5
         return patches_in, patches_out, mask
+
+def gather_finetuning_data(dict_outputs,patch_dataset,model,H,W,P,
+                            batch_size=64):
+    i = 0
+    finetuning_input = []
+    finetuning_output = []
+    while i<len(patch_dataset):
+        tmp = i
+        patches_in = []
+        patches_out = []
+        masks = []
+        f_out = []
+        for j in range(tmp,min(len(patch_dataset),tmp+batch_size)):
+            p_i, p_o, m = patch_dataset[i]
+            patches_in.append(p_i)
+            patches_out.append(p_o)
+            name = patch_dataset.dataset.case_names[
+                patch_dataset.dataset.indices[patch_dataset.indices[i]]]
+            #names.append(name)
+            #print(name)
+            f_out.append(torch.tensor(dict_outputs[name],dtype=torch.float))
+            i+=1
+        patches_in = torch.stack(patches_in)
+        patches_out = torch.stack(patches_out)
+        with torch.no_grad():
+            out = model.predict(patches_in.cuda()).detach()
+        out = to_img(out,H,W,P)
+        finetuning_input.append(out)
+        finetuning_output.append(torch.stack(f_out))
+        #print(i)
+    return torch.cat(finetuning_input,dim=0), torch.cat(finetuning_output,dim=0)[:,0]
+
+
+
+
+
 
 def to_patches(img,P):
     if img.ndim == 3: img = img.reshape(1,*img.shape)
