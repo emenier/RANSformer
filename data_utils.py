@@ -67,6 +67,59 @@ class RansPatchDataset(Dataset):
         mask = mask < 0.5
         return patches_in, patches_out, mask
 
+
+class H5CloudDataset(Dataset):
+
+    def __init__(self,path,indices=None,return_selector=False):
+
+        self.data = h5py.File(path, 'r')
+        self.n_patches = self.data.attrs['max_patches']
+        self.cases = list(self.data.keys())
+        self.case_names = [
+            self.data[c].attrs['case_name'] for c in self.cases
+        ]
+        if indices is None:
+            self.indices = np.arange(len(self.cases))
+        else: self.indices = indices
+        self.return_selector = return_selector
+    def __len__(self):
+        return len(self.indices)
+
+    def pad(self,tensor,pad_func=torch.zeros):
+        padding = pad_func(self.n_patches-tensor.shape[0],*tensor.shape[1:])
+        padded_tensor = torch.cat([tensor,padding],dim=0)
+        return padded_tensor
+
+    def __getitem__(self,idx):
+        group = self.data[self.cases[self.indices[idx]]]
+        
+        patches_in = self.pad(torch.tensor(group['patches_in'][:]))
+        patches_out = self.pad(torch.tensor(group['patches_out'][:]))
+
+        mask = torch.tensor(group['mask'][:])
+        mask = self.pad(mask,pad_func=torch.ones)
+        mask = mask >0.5
+        patches_out[mask] = 0.
+        
+        u_in = torch.tensor(float(group.attrs['u_in']))
+        alpha = torch.tensor(float(group.attrs['alpha']))
+        
+        patches_in = torch.cat([
+            u_in.reshape(1,1).repeat(patches_in.shape[0],1),
+            alpha.reshape(1,1).repeat(patches_in.shape[0],1),
+            patches_in],dim=-1)
+            
+        if self.return_selector:
+            selector = torch.tensor(group['selector'][:])
+            selector = self.pad(selector,pad_func=torch.zeros)
+            selector = selector>0.5
+            
+            return patches_in, patches_out, mask, selector
+
+        else:
+            return patches_in, patches_out, mask
+
+
 def gather_finetuning_data(dict_outputs,patch_dataset,model,H,W,P,
                             batch_size=64):
     i = 0
@@ -113,6 +166,25 @@ def to_patches(img,P):
             patches.append(img[...,i*P:(i+1)*P,
                                 j*P:(j+1)*P].flatten(start_dim=-3))
     return torch.stack(patches).permute(1,0,2)
+
+def get_cloud_idx(bool_mask,C=2):
+    bool_mask = bool_mask.reshape(bool_mask.shape[0],-1,C)
+    bool_mask = bool_mask.reshape(-1,bool_mask.shape[-1])
+    for i in range(bool_mask.shape[-1]-1):
+        assert(bool_mask[:,i]==bool_mask[:,i+1]).all(), f'Bool mask is not coherent at columns {i} and {i+1}.'
+
+    return bool_mask[:,0]
+
+def to_point_cloud(selector,patches,C=2,C_patches=None):
+    if C_patches is None:
+        C_patches = C
+    #selector = selector.reshape(selector.shape[0],-1,C)
+    #selector = selector.reshape(-1,selector.shape[-1])
+    selector = get_cloud_idx(selector)
+    patches = patches.reshape(patches.shape[0],-1,C_patches)
+    patches = patches.reshape(-1,patches.shape[-1])
+    patches = patches[selector]
+    return patches
 
 def to_img(patches,H,W,P):
 

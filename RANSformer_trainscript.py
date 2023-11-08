@@ -14,7 +14,7 @@ dataset = H5RansDataset(osp.join(data_dir,outfile))
 
 
 
-savedir = '/home/tau/emenier/data/AirfRANS/runs/run_3/'
+savedir = '/home/tau/emenier/data/AirfRANS/runs/small_run/'
 
 batch_size = 64 # how many independent sequences will we process in parallel?
 lr = 3e-4
@@ -22,7 +22,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 dtype = torch.float32
 P = 16
 C = 1
-D = 768
+D = 256
 image_size = dataset.N
 C_out = 2
 n_layers = 12
